@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Windows Time Machine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+/* ===== BASE: page chrome, shared window mechanics ===== */
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{font:14px system-ui,Segoe UI,Arial,sans-serif;background:#1b1d22;color:#eee;overflow:hidden}
+#bar{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#23262d;border-bottom:1px solid #3a3e48}
+#bar b{font-size:16px}#bar label{display:flex;gap:8px;align-items:center}
+select,#bar button{font:inherit;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#2f333c;color:#fff;cursor:pointer}
+#bar button:hover{background:#3d424e}
+#wrap{height:calc(100vh - 56px - 112px);display:flex;align-items:center;justify-content:center}
+#fit{position:relative;overflow:hidden;background:#000}
+#stage{position:absolute;left:0;top:0;width:1280px;height:720px;transform-origin:0 0;overflow:hidden;user-select:none;font-size:13px}
+#info{height:112px;padding:10px 20px;background:#23262d;border-top:1px solid #3a3e48;font-size:13px;line-height:1.5;overflow:auto}
+#info h2{margin:0;font-size:15px}#info span{color:#9fd3ff}
+footer{position:fixed;right:10px;bottom:2px;font-size:11px;color:#9aa}
+#small{display:none;padding:40px;text-align:center;font-size:18px}
+@media(max-width:1023px){#app{display:none}#small{display:block}}
+#tut{position:absolute;right:0;top:0;bottom:0;width:290px;background:#fffffff2;color:#111;padding:14px;z-index:99999;font:14px system-ui,sans-serif;transform:translateX(100%);transition:transform .25s;overflow:auto;box-shadow:-4px 0 14px #0006}
+#tut.open{transform:none}#tut h3{margin:0 0 8px}#tut small{color:#444}
+#tut button{font:inherit;margin:4px 4px 0 0;padding:5px 10px;border:1px solid #666;border-radius:5px;background:#eef;color:#111;cursor:pointer}
+.prog{height:8px;background:#ccd;border-radius:4px;margin:8px 0}.prog i{display:block;height:100%;background:#1a7f37;border-radius:4px;transition:width .3s}
+.ok{color:#116329;font-weight:700}.party{font-size:38px;animation:pop .8s infinite alternate}@keyframes pop{to{transform:translateY(-8px) rotate(8deg)}}
+.pulse{outline:3px solid #ff0;outline-offset:2px;animation:pl .7s infinite alternate;position:relative}@keyframes pl{to{outline-color:#f0f;outline-offset:6px}}
+#ov{position:absolute;inset:0;z-index:99998;background:#000;color:#ccc;font:16px monospace;padding:30px;white-space:pre;display:flex;align-items:center;justify-content:center;transition:opacity .4s}
+#ov.go{opacity:0;pointer-events:none}
+/* windows */
+.win{position:absolute;display:flex;flex-direction:column;overflow:hidden;resize:both;min-width:180px;min-height:100px}
+.win.max{left:0!important;top:0!important;width:100%!important;height:calc(100% - var(--tbh))!important;resize:none}
+.tb{display:flex;justify-content:space-between;align-items:center;cursor:move;padding:3px 4px;flex:none}
+.tb button{width:22px;height:20px;margin-left:2px;padding:0;font-size:11px;cursor:pointer}
+.bd{flex:1;overflow:auto;position:relative}
+.desk{position:absolute;inset:0 0 var(--tbh) 0}
+.icons{position:absolute;inset:6px;display:flex;flex-direction:column;flex-wrap:wrap;align-content:flex-start;gap:4px;height:calc(100% - 12px)}
+.ic{width:76px;text-align:center;padding:4px;color:#fff;text-shadow:0 1px 2px #000;cursor:default;border:1px solid transparent}
+.ic b{display:block;font-size:30px;font-weight:400}.ic.sel{background:#3a6fd855;border-color:#8bf}
+#tbar{position:absolute;left:0;right:0;bottom:0;height:var(--tbh);display:flex;align-items:center;gap:4px;padding:0 4px;z-index:9000}
+#tbar .l{display:flex;gap:3px;align-items:center;height:100%;flex:1;overflow:hidden}
+#tbar button{font:inherit;height:calc(100% - 8px);cursor:pointer;white-space:nowrap}
+#tasks{display:flex;gap:3px;height:100%;align-items:center}#tasks button{min-width:110px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+#tray{padding:0 8px;white-space:nowrap}
+#start{position:absolute;left:0;bottom:var(--tbh);width:300px;z-index:9500;display:none;flex-direction:column}
+#start.open{display:flex}#start .sh{padding:10px;font-weight:700}
+#start .it{padding:7px 12px;cursor:pointer;display:flex;gap:8px}#start .it:hover{background:#3a6fd8;color:#fff}
+#start input{margin:6px;padding:5px}
+#ctx{position:absolute;z-index:99990;min-width:140px;display:none;background:#f4f4f4;color:#000;border:1px solid #888;box-shadow:2px 2px 6px #0007}
+#ctx div{padding:5px 14px;cursor:pointer}#ctx div:hover{background:#3a6fd8;color:#fff}
+/* apps */
+.term{background:#000;color:#ddd;font:14px/1.3 Consolas,'Courier New',monospace;padding:6px;height:100%;overflow:auto;white-space:pre-wrap;cursor:text}
+.term .row{display:flex}.term input{flex:1;background:none;border:0;outline:0;color:inherit;font:inherit;caret-color:currentColor}
+.np{width:100%;height:100%;border:0;padding:6px;font:14px Consolas,monospace;resize:none;outline:0}
+.calc{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px}.calc .dsp{grid-column:1/5;background:#fff;color:#000;text-align:right;padding:6px;font-size:20px;border:1px inset #888}
+.calc button{padding:10px;font-size:16px;cursor:pointer}
+.exp{padding:6px;color:#000;background:#fff;height:100%}.exp .ad{display:flex;gap:4px;margin-bottom:6px}.exp .ad input{flex:1}
+.exp .f{display:inline-block;width:84px;text-align:center;margin:4px;cursor:default;color:#000;vertical-align:top}.exp .f b{display:block;font-size:30px;font-weight:400}
+.pc{display:flex;flex-direction:column;height:100%;color:#000;background:#fff}.pc .pal{display:flex;gap:4px;padding:4px;background:#ddd}.pc .pal i{width:20px;height:20px;border:1px solid #000;cursor:pointer}
+.pc canvas{flex:1;width:100%;background:#fff;cursor:crosshair}
+.set{padding:12px;color:#000;background:#fff;height:100%;line-height:2.1}
+.clk{font-size:34px;text-align:center;padding:16px;color:#000;background:#fff;height:100%}
+/* ===== THEMES (scoped by body class on #stage) ===== */
+.t-dos{background:#000;--tbh:0px}
+.t-dos .term{height:100%;font-size:18px;color:#c0c0c0;text-shadow:0 0 5px #9a9;background:repeating-linear-gradient(#0000 0 2px,#0003 2px 3px),#000}
+.t-win1{--tbh:0px;background:#aaa}.t-win1 .desk{inset:0}.t-win1 .win{background:#fff;color:#000;border:1px solid #000;resize:none}
+.t-win1 .tb{background:#fff;border-bottom:1px solid #000;justify-content:center;color:#000}.t-win1 .bs{display:none}
+.t-win1 #tbar{height:56px;background:#aaa;--tbh:56px;border-top:1px solid #000}.t-win1 #tbar button{background:#fff;color:#000;border:1px solid #000}
+.t-win1 .desk{bottom:56px}.t-win1 .ic{color:#000;text-shadow:none}.t-win1 #start{display:none!important}
+.t-win95{--tbh:34px;font-family:Tahoma,'MS Sans Serif',sans-serif}.t-win95 .desk{background:#008080}
+.t-win95 .win{background:#c0c0c0;color:#000;border:2px outset #fff;padding:2px}.t-win95 .tb{background:linear-gradient(90deg,#000080,#1084d0);color:#fff;font-weight:700}
+.t-win95 #tbar{background:#c0c0c0;border-top:2px outset #fff}.t-win95 #tbar button,.t-win95 .tb button,.t-win95 .calc button{background:#c0c0c0;border:2px outset #fff;color:#000}
+.t-win95 #start{background:#c0c0c0;border:2px outset #fff;color:#000}.t-win95 #start .sh{background:#000080;color:#fff}
+.t-win95 #tray{border:1px inset #888;color:#000}
+.t-xp{--tbh:40px;font-family:Tahoma,Segoe UI,sans-serif}.t-xp .desk{background:radial-gradient(ellipse 90% 40% at 30% 105%,#4aa52e 60%,#0000 61%),radial-gradient(ellipse 80% 35% at 90% 110%,#2f8a1f 60%,#0000 61%),linear-gradient(#2a6fd6,#8fc4f5 70%)}
+.t-xp .win{background:#ece9d8;color:#000;border:3px solid #0a4fd0;border-radius:9px 9px 0 0}.t-xp .tb{background:linear-gradient(#3d95ff,#0a5bd9 60%,#0a4fd0);color:#fff;font-weight:700;border-radius:6px 6px 0 0}
+.t-xp #tbar{background:linear-gradient(#3a82f0,#245edb 20%,#1941a5);color:#fff}.t-xp #sb{background:linear-gradient(#5bb85b,#2e8b2e);color:#fff;border:0;border-radius:0 14px 14px 0;font-weight:700;font-style:italic;font-size:17px;padding:0 18px}
+.t-xp #tbar button:not(#sb){background:#3b78e7;color:#fff;border:1px solid #1b4bb0;border-radius:4px}.t-xp #tray{background:#0f8ae8}
+.t-xp #start{background:#fff;color:#000;border:2px solid #0a4fd0;border-radius:8px 8px 0 0}.t-xp #start .sh{background:linear-gradient(#245edb,#3d95ff);color:#fff}
+.t-vista,.t-win7{--tbh:44px;font-family:'Segoe UI',sans-serif}
+.t-vista .desk{background:radial-gradient(ellipse at 30% 80%,#1fa57a,#0000 50%),radial-gradient(ellipse at 70% 30%,#6a3fb5,#0000 55%),#0a1230}
+.t-win7 .desk{background:radial-gradient(circle at 50% 40%,#8fe0ff,#1c6fc9 55%,#0b2f6b)}
+.t-vista .win,.t-win7 .win{background:#ffffffb8;color:#000;backdrop-filter:blur(14px);border:1px solid #fff9;border-radius:8px;box-shadow:0 4px 18px #000a}
+.t-vista .tb,.t-win7 .tb{background:#9fd3ff77;color:#000}
+.t-vista .bd,.t-win7 .bd{background:#fffe}
+.t-vista #tbar,.t-win7 #tbar{background:#0a1a3acc;backdrop-filter:blur(10px)}.t-win7 #tbar{--tbh:44px;background:#bfe0ff66;border-top:1px solid #fff8}
+.t-vista #tbar button,.t-win7 #tbar button{background:#ffffff30;color:#fff;border:1px solid #fff6;border-radius:5px}
+.t-vista #sb,.t-win7 #sb{width:40px;height:40px;border-radius:50%;background:radial-gradient(#7fd,#0a6);font-size:20px;border:2px solid #fff}
+.t-vista #start,.t-win7 #start{background:#0a1a3ae6;color:#fff;border:1px solid #fff6;border-radius:8px;backdrop-filter:blur(12px)}
+#side{position:absolute;right:6px;top:8px;width:150px;display:none;flex-direction:column;gap:8px;color:#fff;text-align:center}
+.t-vista #side{display:flex}#side div{background:#0008;border-radius:8px;padding:10px;cursor:pointer}
+.t-win8{--tbh:40px;font-family:'Segoe UI',sans-serif}.t-win8 .desk{background:linear-gradient(135deg,#1b6dc0,#4fb0f5)}
+.t-win8 .win,.t-win10 .win{background:#fff;color:#000;border:1px solid #1b6dc0}.t-win8 .tb{background:#1b6dc0;color:#fff}
+.t-win8 #tbar,.t-win10 #tbar{background:#1c1c1ce8;color:#fff}.t-win8 #tbar button,.t-win10 #tbar button{background:none;border:0;color:#fff}
+.t-win8 #sb{display:none}.t-win8 #start{display:none!important}
+#s8{position:absolute;inset:0;z-index:9800;background:#5b2d8a;padding:50px 70px;display:none;flex-wrap:wrap;align-content:flex-start;gap:8px;color:#fff;font-family:'Segoe UI',sans-serif}
+#s8.show{display:flex}#s8 h1{width:100%;font-weight:300;margin:0 0 14px;font-size:34px}
+#s8 .tile{width:150px;height:150px;padding:10px;font-size:15px;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between}#s8 .tile.w{width:308px}#s8 .tile b{font-size:36px;font-weight:400}
+#charms{position:absolute;right:0;top:0;bottom:0;width:90px;background:#111;color:#fff;z-index:9900;display:none;flex-direction:column;justify-content:center;gap:24px;text-align:center}#charms.show{display:flex}
+#hot{position:absolute;left:0;bottom:0;width:30px;height:30px;z-index:9950}#hot2{position:absolute;right:0;top:0;bottom:60px;width:6px;z-index:9950}
+.t-win10 .desk{background:radial-gradient(ellipse at 60% 50%,#4aa6ff,#0b4aa8 60%,#06255c)}.t-win10{--tbh:42px;font-family:'Segoe UI',sans-serif}.t-win10 .tb{background:#fff;color:#000}
+.t-win10 #start{width:520px;height:440px;background:#1c1c1cf2;color:#fff;flex-direction:row;flex-wrap:wrap}
+.t-win11{--tbh:48px;font-family:'Segoe UI Variable','Segoe UI',sans-serif}.t-win11 .desk{background:radial-gradient(circle at 35% 60%,#ff8fd0,#0000 40%),radial-gradient(circle at 65% 40%,#6fb0ff,#0000 45%),#e9eef9}
+.t-win11 .win{background:#f9f9f9;color:#000;border-radius:10px;box-shadow:0 6px 24px #0006;border:1px solid #ccc}.t-win11 .tb{background:#f3f3f3;color:#000}
+.t-win11 #tbar{background:#f3f3f3ee;color:#000;justify-content:center;backdrop-filter:blur(12px)}.t-win11 #tbar .l{flex:none;justify-content:center}.t-win11 #tbar button{background:none;border:0;color:#000;border-radius:6px;font-size:16px}
+.t-win11 #tray{position:absolute;right:8px;color:#000}.t-win11 #start{left:50%;margin-left:-260px;width:520px;height:480px;background:#f3f3f3f2;color:#000;border-radius:12px;border:1px solid #ccc;bottom:58px}
+.t-win11 #start .it:hover,.t-win10 #start .it:hover{background:#3a6fd8}
+#wg{position:absolute;left:10px;bottom:58px;width:340px;height:380px;background:#f3f3f3f2;color:#000;border-radius:12px;padding:16px;z-index:9400;display:none;box-shadow:0 6px 24px #0006}
+#snap{position:absolute;display:none;z-index:99991;background:#fff;color:#000;padding:8px;border-radius:8px;box-shadow:0 4px 14px #0006}
+#tv{position:absolute;inset:0;bottom:var(--tbh);background:#000b;z-index:9300;display:none;padding:40px;color:#fff;gap:14px;flex-wrap:wrap}
+.dark .win{background:#222!important;color:#eee!important}.dark .win *{color:inherit}.dark .win input,.dark .win textarea{background:#333!important}
+</style></head><body>
+<div id="app">
+<header id="bar"><b>Windows Time Machine</b>
+<label for="sel">Choose a Windows version <select id="sel"></select></label>
+<span><button id="bt" aria-label="Toggle tutorial panel">Tutorial</button> <button id="br" aria-label="Reset this version">Reset</button> <button id="bf" aria-label="Fullscreen">Fullscreen</button></span></header>
+<main id="wrap"><div id="fit"><div id="stage"></div><aside id="tut" aria-label="Tutorial"></aside></div></main>
+<section id="info"></section></div>
+<div id="small">Best viewed on a larger screen (1024px wide or more).</div>
+<footer>Educational simulation. Not affiliated with Microsoft.</footer>
+<script>
+"use strict";
+/* ===== DATA: per-version config (id, name, year, theme, icons, apps, tutorial, boot, info) ===== */
+const S=(t,w,e,a,h)=>({t,w,e,a,h});
+const ALL=['term','note','calc','exp','paint','set'];
+const V={
+dos:{n:'MS-DOS',y:1981,th:'dos',apps:[],boot:'Starting MS-DOS...',ver:'MS-DOS Version 2.11',
+ l:'A text-only command line: no mouse, no windows.',f:['Command line','Plain text files','Runs one program at a time'],x:'MS-DOS 1.0 shipped with the original IBM PC in 1981.',
+ tut:[S('Type ver and press Enter.','ver shows the system version.','cmd','ver'),S('Type dir to list files.','dir is how you look around.','cmd','dir'),S('Type mkdir homework.','Folders keep files organised.','cmd','mkdir homework'),S('Type cd homework.','cd moves you into a folder.','cmd','cd homework'),S('Type cd.. to go back.','.. means the parent folder.','cmd','cd ..')]},
+win1:{n:'Windows 1.0',y:1985,th:'win1',apps:['exp','note','clock','paint','calc','term'],exp:'MS-DOS Executive',boot:'Starting Windows...',ver:'Windows 1.01',tile:1,
+ l:'First graphical shell that ran on top of MS-DOS.',f:['Tiled windows','Mouse support','Paint, Notepad, Calculator'],x:'Windows never overlapped each other here: they were tiled.',
+ tut:[S('Double click "MS-DOS Executive".','The file manager of its day.','open','exp','.ic'),S('Open Notepad and type your name.','Text editing in a window.','open','note'),S('Open Clock.','A tiny desk accessory.','open','clock'),S('Drag a window by its title. Notice windows are tiled and snap back.','Tiling avoided overlap.','drag')]},
+win95:{n:'Windows 95',y:1995,th:'win95',apps:ALL,exp:'My Computer',sb:'⊞ Start',boot:'Starting Windows 95...',ver:'Windows 95 [Version 4.00.950]',
+ l:'Introduced the Start button and taskbar.',f:['Start button + taskbar','Long file names','Plug and Play'],x:'Its launch campaign used the song "Start Me Up".',
+ tut:[S('Click the Start button.','Start is the doorway to everything.','start',0,'#sb'),S('Start > Notepad.','Programs live in the menu.','open','note'),S('Open My Computer.','Browse your drives.','open','exp'),S('Open Paint and draw.','Apps share the same engine.','open','paint'),S('Drag a window, then minimize it.','Minimized apps live on the taskbar.','min')]},
+xp:{n:'Windows XP',y:2001,th:'xp',apps:ALL,exp:'My Computer',sb:'start',boot:'Starting Windows XP...',ver:'Microsoft Windows XP [Version 5.1.2600]',
+ l:'Friendly Luna look; long-lived and hugely popular.',f:['Luna visual style','Two-column Start menu','Fast user switching'],x:'Support ended in 2014, years after most versions.',
+ tut:[S('Open the green Start menu.','Start is your launcher.','start',0,'#sb'),S('Open My Computer.','Browse drives.','open','exp'),S('Open Control Panel (Settings) and change the wallpaper.','Personalize your desktop.','wall'),S('Open Command Prompt and run ver.','Command line still exists.','cmd','ver'),S('Right click the desktop, then New Folder.','Context menus save time.','newfolder')]},
+vista:{n:'Windows Vista',y:2007,th:'vista',apps:ALL,exp:'Computer',sb:'⊞',boot:'Welcome',ver:'Microsoft Windows [Version 6.0.6000]',search:1,
+ l:'Aero glass look, Sidebar gadgets and Start search.',f:['Aero glass','Sidebar gadgets','Start menu search'],x:'Its codename was Longhorn; consumer release was January 2007.',
+ tut:[S('Open the Start orb.','Start in Vista has a search box.','start',0,'#sb'),S('Open Computer.','Browse drives.','open','exp'),S('Notice the glass effect and drag the window.','Glass is blur + transparency.','drag'),S('In Start, search for "Notepad".','Search replaced hunting through menus.','search','note'),S('Click the sidebar clock gadget.','Gadgets sat in the Sidebar.','gadget','', '#side')]},
+win7:{n:'Windows 7',y:2009,th:'win7',apps:ALL,exp:'Libraries',sb:'⊞',boot:'Welcome',ver:'Microsoft Windows [Version 6.1.7601]',search:1,pin:['exp','note','term'],
+ l:'Refined Aero with a bigger taskbar and pinned apps.',f:['Pinned taskbar icons','Aero Snap','Libraries'],x:'Many people still call it the best-loved Windows.',
+ tut:[S('Open Start and use the search box.','Type to find anything.','search','note'),S('Open Libraries.','Libraries group your folders.','open','exp'),S('Click a pinned taskbar icon (Notepad).','Pinning keeps favourites close.','open','note','#tasks'),S('Snap a window: drag it to the left screen edge.','Aero Snap halves the screen.','snap')]},
+win8:{n:'Windows 8',y:2012,th:'win8',apps:ALL,exp:'This PC',boot:'Welcome',ver:'Microsoft Windows [Version 6.2.9200]',
+ l:'Tile-based Start screen replaced the Start menu.',f:['Live tiles','Charms bar','Windows Store'],x:'The Start button returned in Windows 8.1.',
+ tut:[S('Click a tile on the Start screen.','Tiles are big touch targets.','tile',0,'#s8 .tile'),S('Click the Desktop tile.','The classic desktop still exists.','desktop',0,'.dt'),S('Move the mouse to the right edge for Charms.','Charms hold system actions.','charms'),S('Click the bottom-left hot corner.','It returns you to Start.','hot')]},
+win10:{n:'Windows 10',y:2015,th:'win10',apps:ALL,exp:'This PC',sb:'⊞',boot:'Welcome',ver:'Microsoft Windows [Version 10.0.19045]',search:1,pin:['exp','note','term'],
+ l:'Launched July 2015 and brought back the Start menu.',f:['Start menu + live tiles','Task View','Virtual desktops'],x:'It was a free upgrade for eligible users in its first year.',
+ tut:[S('Open Start.','Apps list on the left, tiles on the right.','start',0,'#sb'),S('Click the taskbar search box.','Search is always on the taskbar.','search','','#search'),S('Open Task View.','See all windows at once.','taskview',0,'#tvb'),S('Open Settings and toggle dark mode.','Dark mode is easier on eyes.','dark'),S('Open Command Prompt and run winver.','winver shows version info.','cmd','winver')]},
+win11:{n:'Windows 11',y:2021,th:'win11',apps:ALL,exp:'This PC',sb:'⊞',boot:'Welcome',ver:'Microsoft Windows [Version 10.0.22621]',search:1,pin:['exp','note','term'],
+ l:'Launched October 2021 with a centered taskbar.',f:['Centered taskbar','Snap Layouts','Widgets'],x:'It requires a TPM 2.0 chip.',
+ tut:[S('Notice the centered taskbar and open Start.','Everything moved to the center.','start',0,'#sb'),S('Open Widgets.','Glanceable info.','widgets',0,'#wgb'),S('Open Settings and toggle dark mode.','Personalize the look.','dark'),S('Hover a window\'s maximize button for Snap Layouts.','Layouts organise windows.','snaplayout'),S('Search in the Start menu.','Search finds apps fast.','search','note')]}
+};
+const ORDER=Object.keys(V);
+const APPS={term:{n:'Command Prompt',i:'⌨️',w:560,h:320},note:{n:'Notepad',i:'📝',w:420,h:300},calc:{n:'Calculator',i:'🧮',w:240,h:300},exp:{n:'Explorer',i:'🖥️',w:520,h:340},paint:{n:'Paint',i:'🎨',w:480,h:340},set:{n:'Settings',i:'⚙️',w:360,h:260},clock:{n:'Clock',i:'🕒',w:240,h:140}};
+const $=s=>document.querySelector(s);const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e};
+let cur='xp',z=10,k=1,wins=[],H24=false,tut={};
+
+/* ===== EVENT BUS (drives the tutorial) ===== */
+const bus={emit(e,a){tutCheck(e,a)},fs:[]};
+
+/* ===== VIRTUAL FILE SYSTEM (shared by Explorer and Terminal) ===== */
+let FS,RB=[];
+function resetFS(){FS={'C:':{Documents:{'readme.txt':'Welcome to the Windows Time Machine!','notes.txt':'Hello'},Pictures:{},Music:{},Games:{},Windows:{'system.ini':'[boot]'}}};RB=[]}
+const key=(n,s)=>Object.keys(n).find(x=>x.toLowerCase()==s.toLowerCase());
+function node(a){let n=FS;for(const s of a){if(typeof n!='object')return;const q=key(n,s);if(q==null)return;n=n[q]}return n}
+const fsChanged=()=>bus.fs.forEach(f=>f());
+
+/* ===== TERMINAL (used full-screen in DOS and as a window elsewhere) ===== */
+function Term(box,close){
+ const v=V[cur],dos=cur=='dos';let cwd=['C:'],hist=[],hi=0;
+ box.classList.add('term');const out=el('div'),row=el('div','row','<span></span><input spellcheck="false" autocomplete="off" aria-label="Command input">');
+ box.append(out,row);const pr=row.firstChild,inp=row.lastChild;
+ const P=()=>cwd.length>1?cwd.join('\\')+'>':'C:\\>';const upd=()=>pr.textContent=P();
+ const say=t=>{out.append(document.createTextNode(t+'\n'));box.scrollTop=1e9};
+ function res(p){let a=/^[A-Za-z]:|^[\\/]/.test(p)?['C:']:cwd.slice();p.split(/[\\/]/).forEach(s=>{if(!s||/^c:$/i.test(s))return;if(s=='..'){if(a.length>1)a.pop()}else if(s!='.')a.push(s)});return a}
+ const tree=(n,ind)=>Object.keys(n).forEach(q=>{if(typeof n[q]=='object'){say(ind+'+--'+q);tree(n[q],ind+'|  ')}});
+ const HELP={help:'Lists commands.',cls:'Clears the screen.',echo:'Displays text.',ver:'Shows version.',date:'Shows date.',time:'Shows time.',dir:'Lists folder contents.',cd:'Changes folder.',mkdir:'Creates a folder.',rmdir:'Removes an empty folder.',type:'Shows a text file.',copy:'Copies a file.',del:'Deletes a file (to Recycle Bin).',ren:'Renames a file or folder.',rd:'Same as rmdir.',color:'Sets text color, e.g. color 0a.',title:'Sets window title.',tree:'Shows folder tree.',hostname:'Shows computer name.',whoami:'Shows user.',systeminfo:'Short system summary.',exit:'Closes the prompt.',tutorial:'Opens the tutorial panel.',winver:'About Windows.',ipconfig:'Fake network info.'};
+ const C={
+ help:a=>a?say(HELP[a]||'No help for '+a):say(Object.keys(HELP).join('  ')),
+ cls:()=>out.textContent='',echo:a=>say(a),ver:()=>say(v.ver),
+ date:()=>say(new Date().toDateString()),time:()=>say(new Date().toLocaleTimeString()),
+ dir:()=>{const n=node(cwd);say(' Directory of '+cwd.join('\\')+'\\');Object.keys(n).forEach(q=>say((typeof n[q]=='object'?'<DIR>     ':'          ')+q))},
+ cd:a=>{if(!a)return say(cwd.join('\\'));const r=res(a),n=node(r);if(n&&typeof n=='object')cwd=r;else say(dos?'Invalid directory':'The system cannot find the path specified.')},
+ mkdir:a=>{const r=res(a),nm=r.pop(),p=node(r);if(!a)return say('Required parameter missing');if(!p||typeof p!='object')return say('Path not found');if(key(p,nm))return say('A subdirectory or file '+nm+' already exists.');p[nm]={};fsChanged()},
+ rmdir:a=>{const r=res(a),nm=r.pop(),p=node(r),q=p&&key(p,nm);if(q==null||typeof p[q]!='object')return say('Invalid path');if(Object.keys(p[q]).length)return say('The directory is not empty.');delete p[q];fsChanged()},
+ type:a=>{const n=node(res(a));typeof n=='string'?say(n):say('File not found - '+a)},
+ copy:a=>{const[s,d]=a.split(/\s+/);const n=node(res(s||''));if(typeof n!='string'||!d)return say('File not found');const r=res(d),t=node(r);if(t&&typeof t=='object')t[s.split(/[\\/]/).pop()]=n;else{const nm=r.pop(),p=node(r);if(!p)return say('Path not found');p[nm]=n}say('        1 file(s) copied.');fsChanged()},
+ del:a=>{const r=res(a),nm=r.pop(),p=node(r),q=p&&key(p,nm);if(q==null||typeof p[q]!='string')return say('File not found');RB.push({name:q,data:p[q],path:r});delete p[q];fsChanged()},
+ ren:a=>{const[s,d]=a.split(/\s+/);const r=res(s||''),nm=r.pop(),p=node(r),q=p&&key(p,nm);if(q==null||!d)return say('Invalid');p[d]=p[q];delete p[q];fsChanged()},
+ color:a=>{const P='#000,#00a,#0a0,#0aa,#a00,#a0a,#aa0,#ccc,#888,#55f,#5f5,#5ff,#f55,#f5f,#ff5,#fff'.split(',');const f=parseInt(a.slice(-1),16),b=a.length>1?parseInt(a[0],16):0;if(isNaN(f))return;box.style.color=P[f];box.style.background=P[b]},
+ title:a=>say('Title set to '+a),tree:()=>{say(cwd.join('\\'));tree(node(cwd),'')},hostname:()=>say('TIME-MACHINE'),whoami:()=>say('time-machine\\student'),
+ systeminfo:()=>{say('OS Name:   '+V[cur].n);say('Version:   '+v.ver);say('Released: '+v.y);say('Memory:    (simulated)')},
+ exit:()=>close?close():say('You cannot exit the DOS shell here.'),
+ tutorial:()=>openTut(true),winver:()=>{if(cur=='win10'||cur=='win11')openAbout();else say(bad('winver'))},
+ ipconfig:()=>{if(cur=='win10'||cur=='win11'){say('Ethernet adapter:\n   IPv4 Address. . . : 192.168.1.23\n   Subnet Mask . . . : 255.255.255.0')}else say(bad('ipconfig'))}};
+ C.rd=C.rmdir;C.cls=()=>out.textContent='';
+ const bad=c=>dos?'Bad command or file name':"'"+c+"' is not recognized as an internal or external command,\noperable program or batch file.";
+ function run(line){say(P()+line);line=line.trim();if(!line)return;hist.push(line);hi=hist.length;
+  let m=line.match(/^cd\.\.$/i)?['','cd','..']:line.match(/^(\S+)\s*(.*)$/);const c=m[1].toLowerCase(),a=m[2]||'';
+  if(c=='help'&&a)say(HELP[a.toLowerCase()]||'No help for '+a);else if(C[c])C[c](a);else say(bad(c));
+  bus.emit('cmd',(c+' '+a).trim().toLowerCase());upd()}
+ inp.onkeydown=e=>{if(e.key=='Enter'){const l=inp.value;inp.value='';run(l)}
+  else if(e.key=='ArrowUp'){if(hi>0)inp.value=hist[--hi]||'';e.preventDefault()}else if(e.key=='ArrowDown'){inp.value=hist[++hi]||'';e.preventDefault()}else if(e.key=='Tab')e.preventDefault()};
+ box.onclick=()=>inp.focus();
+ say(dos?'Microsoft MS-DOS Version 2.11\n(C)Copyright Microsoft Corp 1981-1983\nType HELP for commands.\n':v.ver+'\n(C) Educational simulation. Type HELP.\n');upd();setTimeout(()=>inp.focus(),50);
+}
+
+/* ===== APPS ===== */
+const A={
+ term:(b,w)=>Term(b,()=>w.close()),
+ note:(b,w,f)=>{const bar=el('div','', '<button>Save</button> <button>Open</button>');bar.style.cssText='padding:3px;background:#ddd';const t=el('textarea','np');t.value=f?f.text:'';t.setAttribute('aria-label','Text');
+  b.style.cssText='display:flex;flex-direction:column;color:#000';b.append(bar,t);
+  bar.children[0].onclick=()=>{const n=prompt('File name (saved in C:\\Documents):',f?f.name:'note.txt');if(n){FS['C:'].Documents[n]=t.value;fsChanged();bus.emit('save')}};
+  bar.children[1].onclick=()=>{const n=prompt('Open which file from C:\\Documents?\n'+Object.keys(FS['C:'].Documents).join(', '));const d=FS['C:'].Documents;const q=n&&key(d,n);if(q!=null&&typeof d[q]=='string')t.value=d[q]}},
+ calc:b=>{b.className+=' calc';let cur='',op='',acc=null;const d=el('div','dsp','0');b.append(d);
+  '7 8 9 / 4 5 6 * 1 2 3 - C 0 = +'.split(' ').forEach(s=>{const x=el('button','',s=='*'?'×':s);x.onclick=()=>{
+   if(/\d/.test(s)){cur+=s;d.textContent=cur}else if(s=='C'){cur='';op='';acc=null;d.textContent='0'}
+   else{if(cur!==''){acc=acc===null||!op?+cur:eval(acc+op+cur);cur=''}d.textContent=acc??0;op=s=='='?'':s}};b.append(x)})},
+ exp:(b,w)=>{let p=['C:'],hist=[];const root=el('div','exp');b.append(root);
+  function draw(){const n=node(p);root.innerHTML='<div class="ad"><button>◀ Back</button><input readonly aria-label="Address" value="'+p.join('\\')+'\\"></div>';
+   root.firstChild.firstChild.onclick=()=>{if(p.length>1){p.pop();draw()}};
+   Object.keys(n).forEach(q=>{const d=typeof n[q]=='object',f=el('div','f','<b>'+(d?'📁':'📄')+'</b>'+q);f.ondblclick=()=>{if(d){p.push(q);draw();bus.emit('folder')}else openWin('note',{text:n[q],name:q})};root.append(f)});
+   if(p.join()=='C:'&&RB.length)root.append(el('div','', '<hr>Recycle Bin: '+RB.map((r,i)=>r.name+' <a href="#" data-i="'+i+'">Restore</a>').join(', ')));
+   root.querySelectorAll('a').forEach(a=>a.onclick=e=>{e.preventDefault();const r=RB.splice(+a.dataset.i,1)[0];const t=node(r.path);if(t)t[r.name]=r.data;fsChanged()})}
+  bus.fs.push(draw);w.onclose=()=>bus.fs=bus.fs.filter(x=>x!=draw);draw()},
+ paint:b=>{const w=el('div','pc','<div class="pal"></div><canvas width="800" height="500"></canvas>');b.append(w);const c=w.querySelector('canvas'),g=c.getContext('2d');let col='#000',draw=0,er=0;
+  g.fillStyle='#fff';g.fillRect(0,0,800,500);
+  ['#000','#e22','#2a2','#22e','#ea2','#a2e'].forEach(x=>{const i=el('i');i.style.background=x;i.onclick=()=>{col=x;er=0};w.firstChild.append(i)});
+  const e=el('button','','Eraser');e.onclick=()=>er=1;const cl=el('button','','Clear');cl.onclick=()=>{g.fillStyle='#fff';g.fillRect(0,0,800,500)};w.firstChild.append(e,cl);
+  const pos=ev=>{const r=c.getBoundingClientRect();return[(ev.clientX-r.left)*800/r.width,(ev.clientY-r.top)*500/r.height]};
+  c.onpointerdown=ev=>{draw=1;c.setPointerCapture(ev.pointerId);const[x,y]=pos(ev);g.beginPath();g.moveTo(x,y)};c.onpointerup=()=>draw=0;
+  c.onpointermove=ev=>{if(!draw)return;const[x,y]=pos(ev);g.strokeStyle=er?'#fff':col;g.lineWidth=er?16:3;g.lineCap='round';g.lineTo(x,y);g.stroke()}},
+ set:b=>{b.innerHTML='<div class="set">Wallpaper: <button>Blue</button> <button>Green</button> <button>Sunset</button><br><label><input type="checkbox" id="h24"> 24-hour clock</label><br><label><input type="checkbox" id="dk"> Dark mode</label></div>';
+  const W=['linear-gradient(#0a3fa0,#6ac)','linear-gradient(#0a5,#8d8)','linear-gradient(#a30,#fa5)'];
+  b.querySelectorAll('button').forEach((x,i)=>x.onclick=()=>{$('.desk').style.background=W[i];bus.emit('wall')});
+  b.querySelector('#h24').checked=H24;b.querySelector('#h24').onchange=e=>H24=e.target.checked;
+  b.querySelector('#dk').checked=$('#stage').classList.contains('dark');b.querySelector('#dk').onchange=e=>{$('#stage').classList.toggle('dark',e.target.checked);bus.emit('dark')}},
+ clock:b=>{const c=el('div','clk');b.append(c);const t=()=>c.textContent=new Date().toLocaleTimeString();t();const i=setInterval(t,1000);b.closest('.win').onclose=()=>clearInterval(i)}
+};
+function openAbout(){const w=openWin('clock');w.querySelector('.ti').textContent='About Windows';w.querySelector('.bd').innerHTML='<div class="clk" style="font-size:16px">'+V[cur].n+'<br>'+V[cur].ver+'<br>Educational simulation.</div>'}
+
+/* ===== WINDOW MANAGER ===== */
+function tile(){if(!V[cur].tile)return;const L=wins.filter(w=>w.style.display!='none'&&!w.classList.contains('max')),n=L.length||1,W=1280/n;
+ L.forEach((w,i)=>{w.style.left=i*W+'px';w.style.top='0';w.style.width=W+'px';w.style.height='664px'})}
+function focus(w){w.style.zIndex=++z;wins.forEach(x=>x.btn&&x.btn.classList.toggle('act',x==w))}
+function openWin(id,f){const a=APPS[id],v=V[cur],w=el('div','win','<div class="tb"><span class="ti"></span><span class="bs"><button aria-label="Minimize">_</button><button aria-label="Maximize">□</button><button aria-label="Close">×</button></span></div><div class="bd"></div>');
+ w.querySelector('.ti').textContent=a.i+' '+(id=='exp'?(v.exp||'Explorer'):a.n);
+ const n=wins.length;w.style.cssText='left:'+(60+n*28)+'px;top:'+(30+n*28)+'px;width:'+a.w+'px;height:'+a.h+'px;z-index:'+(++z);
+ $('.desk').append(w);wins.push(w);
+ w.close=()=>{w.onclose&&w.onclose();w.remove();w.btn&&w.btn.remove();wins=wins.filter(x=>x!=w);tile()};
+ const[bm,bx,bc]=w.querySelectorAll('.bs button'),tb=w.querySelector('.tb');
+ bm.onclick=()=>{w.style.display='none';w.btn&&w.btn.classList.remove('act');bus.emit('min');tile()};
+ bx.onclick=()=>{w.classList.toggle('max')};bc.onclick=w.close;
+ bx.onmouseenter=()=>{if(cur=='win11'){const s=$('#snap');s.style.display='block';s.style.left=Math.min(w.offsetLeft+w.offsetWidth-120,1100)+'px';s.style.top=(w.offsetTop+28)+'px';bus.emit('snaplayout');setTimeout(()=>s.style.display='none',1800)}};
+ w.onpointerdown=()=>focus(w);
+ tb.onpointerdown=e=>{if(e.target.closest('button')||w.classList.contains('max'))return;tb.setPointerCapture(e.pointerId);const sx=e.clientX,sy=e.clientY,ox=w.offsetLeft,oy=w.offsetTop;let moved=0;
+  tb.onpointermove=m=>{const dx=(m.clientX-sx)/k,dy=(m.clientY-sy)/k;if(Math.abs(dx)+Math.abs(dy)>5)moved=1;
+   w.style.left=Math.max(0,Math.min(1280-60,ox+dx))+'px';w.style.top=Math.max(0,Math.min(600,oy+dy))+'px'};
+  tb.onpointerup=()=>{tb.onpointermove=null;if(moved){bus.emit('drag');
+   if(['win7','win10','win11'].includes(cur)&&w.offsetLeft<6){w.style.left='0';w.style.top='0';w.style.width='640px';w.style.height='calc(100% - var(--tbh))';bus.emit('snap')}tile()}}};
+ if(!v.tile||1){const tk=el('button','',a.i+' '+(id=='exp'?(v.exp||'Explorer'):a.n));w.btn=tk;tk.onclick=()=>{if(w.style.display=='none'){w.style.display='flex';focus(w);tile()}else if(tk.classList.contains('act')){bm.click()}else focus(w)};$('#tasks').append(tk)}
+ A[id]($(' .bd',w)||w.querySelector('.bd'),w,f);focus(w);tile();bus.emit('open',id);return w}
+
+/* ===== STAGE / DESKTOP / TASKBAR / START MENU ===== */
+function buildStage(){const v=V[cur],st=$('#stage');wins=[];bus.fs=[];const dark=st.classList.contains('dark');
+ st.className='t-'+v.th+(dark?' dark':'');st.innerHTML='';
+ if(cur=='dos'){const b=el('div');b.style.height='100%';st.append(b);Term(b);return}
+ const desk=el('div','desk'),ics=el('div','icons');desk.append(ics);
+ v.apps.slice(0,5).forEach(id=>{const a=APPS[id],ic=el('div','ic','<b>'+a.i+'</b>'+(id=='exp'?v.exp:a.n));ic.tabIndex=0;
+  ic.onclick=()=>{ics.querySelectorAll('.sel').forEach(x=>x.classList.remove('sel'));ic.classList.add('sel')};ic.ondblclick=()=>openWin(id);ic.onkeydown=e=>e.key=='Enter'&&openWin(id);ics.append(ic)});
+ if(v.th!='win1'){const rb=el('div','ic','<b>🗑️</b>Recycle Bin');rb.ondblclick=()=>openWin('exp');ics.append(rb)}
+ const tbar=el('div','', ''),L=el('div','l'),tray=el('div','','');tbar.id='tbar';tbar.append(L,tray);tray.id='tray';
+ const sb=el('button','',v.sb||'Start');sb.id='sb';sb.setAttribute('aria-label','Start');
+ const start=el('div','');start.id='start';
+ start.innerHTML='<div class="sh">'+(v.th=='win95'?'Windows 95':'👤 Student')+'</div>'+(v.search?'<input id="q" placeholder="Search programs" aria-label="Search programs">':'');
+ const items=v.apps.map(id=>{const a=APPS[id],it=el('div','it',a.i+' '+(id=='exp'?v.exp:a.n));it.onclick=()=>{openWin(id);start.classList.remove('open')};it.dataset.n=a.n.toLowerCase();return it});
+ start.append(...items);const sd=el('div','it','⏻ Shut Down');sd.onclick=()=>switchTo(cur);start.append(sd);
+ const q=start.querySelector('#q');if(q){q.oninput=()=>{items.forEach(i=>i.style.display=i.dataset.n.includes(q.value.toLowerCase())?'flex':'none');bus.emit('search',q.value)};q.onkeydown=e=>{if(e.key=='Enter'){const f=items.find(i=>i.style.display!='none');f&&f.click()}}}
+ sb.onclick=e=>{e.stopPropagation();if(cur=='win8'){showS8(1);return}start.classList.toggle('open');bus.emit('start');q&&q.focus()};
+ st.onclick=()=>start.classList.remove('open');
+ if(cur!='win8')L.append(sb);
+ if(cur=='win10'){const s=el('input');s.id='search';s.placeholder='Type here to search';s.style.cssText='height:30px;width:170px';s.setAttribute('aria-label','Search');s.onclick=()=>bus.emit('search');L.append(s);
+  const t=el('button','','▭');t.id='tvb';t.setAttribute('aria-label','Task View');t.onclick=()=>{const o=$('#tv');o.innerHTML='';wins.forEach(w=>{const c=el('div','', w.querySelector('.ti').textContent);c.style.cssText='background:#fff;color:#000;padding:50px 40px;border-radius:4px';c.onclick=()=>{o.style.display='none';w.style.display='flex';focus(w)};o.append(c)});o.style.display=o.style.display=='flex'?'none':'flex';bus.emit('taskview')};L.append(t)}
+ if(cur=='win11'){const t=el('button','','🧩');t.id='wgb';t.setAttribute('aria-label','Widgets');t.onclick=()=>{const g=$('#wg');g.style.display=g.style.display=='block'?'none':'block';bus.emit('widgets')};L.append(t)}
+ (v.pin||[]).forEach(id=>{const p=el('button','',APPS[id].i);p.setAttribute('aria-label','Pinned '+APPS[id].n);p.onclick=()=>openWin(id);L.append(p)});
+ const tasks=el('div');tasks.id='tasks';L.append(tasks);
+ const clk=()=>{tray.textContent='🔊 '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:!H24})};clk();clearInterval(window._ci);window._ci=setInterval(clk,1000);
+ desk.oncontextmenu=e=>{e.preventDefault();const c=$('#ctx'),r=st.getBoundingClientRect();c.style.display='block';c.style.left=(e.clientX-r.left)/k+'px';c.style.top=(e.clientY-r.top)/k+'px'};
+ const ctx=el('div','', '<div>Refresh</div><div>New Folder</div><div>Properties</div>');ctx.id='ctx';
+ ctx.children[1].onclick=()=>{const d=FS['C:'].Documents;let n='New Folder',i=1;while(key(d,n))n='New Folder ('+ ++i+')';d[n]={};fsChanged();bus.emit('newfolder')};
+ ctx.children[2].onclick=()=>openAbout();ctx.onclick=()=>ctx.style.display='none';
+ desk.onclick=()=>ctx.style.display='none';
+ st.append(desk,tbar,start,ctx);
+ if(cur=='vista'){const s=el('div','', '<div id="gc">🕒<br>--:--</div><div>📅 '+new Date().toDateString()+'</div><div>📝 Notes</div>');s.id='side';desk.append(s);const g=s.firstChild;g.onclick=()=>bus.emit('gadget');setInterval(()=>g.innerHTML='🕒<br>'+new Date().toLocaleTimeString(),1000)}
+ if(cur=='win11'){const g=el('div','','<b>Widgets</b><p>☀️ 24°C Sunny</p><p>📰 Today in tech</p>');g.id='wg';st.append(g);const sn=el('div','','▭▯ ▯▭ ▯▮▯');sn.id='snap';st.append(sn)}
+ if(cur=='win10'){const t=el('div');t.id='tv';st.append(t)}
+ if(cur=='win10'||cur=='win11'){start.querySelectorAll('.it').forEach(i=>i.style.width='48%')}
+ if(cur=='win8')buildS8(st)}
+function buildS8(st){const s=el('div','','<h1>Start</h1>');s.id='s8';const C=['#d24726','#0a8','#2a6fd6','#a4c400','#e3a21a','#8c3fb5','#00aba9','#d80073'],N=[['✉️','Mail'],['📅','Calendar'],['🖼️','Photos'],['☀️','Weather'],['🛍️','Store'],['🗺️','Maps'],['🎵','Music'],['🎬','Video']];
+ const dt=el('div','tile w dt','<b>🖥️</b>Desktop');dt.style.background='#2a6fd6';dt.onclick=()=>{showS8(0);bus.emit('desktop')};s.append(dt);
+ N.forEach((n,i)=>{const t=el('div','tile'+(i%3==0?' w':''),'<b>'+n[0]+'</b>'+n[1]);t.style.background=C[i];t.onclick=()=>bus.emit('tile');s.append(t)});
+ const sh=el('div','tile','<b>⌨️</b>Prompt');sh.style.background='#333';sh.onclick=()=>{showS8(0);openWin('term')};s.append(sh);
+ const ch=el('div','', '<div>🔍<br>Search</div><div>↗️<br>Share</div><div>⊞<br>Start</div><div>📱<br>Devices</div><div>⚙️<br>Settings</div>');ch.id='charms';
+ const hot=el('div');hot.id='hot';hot.onclick=()=>{showS8(1);bus.emit('hot')};const h2=el('div');h2.id='hot2';h2.onmouseenter=()=>{ch.classList.add('show');bus.emit('charms')};ch.onmouseleave=()=>ch.classList.remove('show');
+ st.append(s,ch,hot,h2);s.classList.add('show')}
+function showS8(on){$('#s8').classList.toggle('show',!!on)}
+
+/* ===== TUTORIAL ===== */
+const save=()=>localStorage.setItem('wtm-tut',JSON.stringify(tut));
+function openTut(o){$('#tut').classList.toggle('open',o===undefined?!$('#tut').classList.contains('open'):o);tutRender()}
+let stepOk=false;
+function tutCheck(e,a){const T=V[cur].tut,i=tut[cur]||0;if(i>=T.length||stepOk)return;const s=T[i];
+ if(s.e==e&&(!s.a||String(a||'').toLowerCase().includes(s.a))){stepOk=true;tutRender()}}
+function tutRender(){const T=V[cur].tut,i=tut[cur]||0,p=$('#tut');
+ if(i>=T.length){p.innerHTML='<h3>'+V[cur].n+' tutorial</h3><div class="party" aria-hidden="true">🎉🏆🎉</div><p class="ok">Tutorial complete! Great job.</p><button id="rs">Restart tutorial</button>';
+  $('#rs').onclick=()=>{tut[cur]=0;stepOk=false;save();tutRender()};return}
+ const s=T[i];p.innerHTML='<h3>'+V[cur].n+' tutorial</h3><small>Step '+(i+1)+' of '+T.length+'</small><div class="prog"><i style="width:'+(i/T.length*100)+'%"></i></div><p><b>'+s.t+'</b></p><p><small>Why this matters: '+s.w+'</small></p>'+
+  (stepOk?'<p class="ok">✅ Done!</p><button id="nx">'+(i==T.length-1?'Finish 🎉':'Next')+'</button>':'<button id="sh">Show me</button> <button id="sk">Skip</button>')+' <button id="rs">Restart</button>';
+ const adv=()=>{tut[cur]=i+1;stepOk=false;save();tutRender()};
+ $('#nx')&&($('#nx').onclick=adv);$('#sk')&&($('#sk').onclick=adv);
+ $('#rs').onclick=()=>{tut[cur]=0;stepOk=false;save();tutRender()};
+ $('#sh')&&($('#sh').onclick=()=>{const h=s.h||(cur=='dos'?'.term input':s.e=='cmd'?'.ic:nth-child(5)':s.e=='open'?'.ic':'#sb'),t=$(h);if(t){t.classList.add('pulse');setTimeout(()=>t.classList.remove('pulse'),3500)}})}
+
+/* ===== MAIN: version switching, scaling, hash routing ===== */
+function switchTo(id,first){if(!V[id])id='xp';cur=id;localStorage.setItem('wtm-ver',id);history.replaceState(null,'','#'+id);$('#sel').value=id;stepOk=false;
+ const v=V[id],ov=el('div','',id=='dos'?'Booting MS-DOS...\nMemory test OK\nStarting MS-DOS...':v.boot);ov.id='ov';
+ if(id!='dos'&&id!='win1'&&id!='win95'&&id!='xp')ov.style.cssText='background:#123;font:30px system-ui;color:#fff';
+ buildStage();$('#stage').append(ov);setTimeout(()=>ov.classList.add('go'),first?500:400);setTimeout(()=>ov.remove(),1000);
+ $('#info').innerHTML='<h2>'+v.n+' <span>('+v.y+')</span></h2>'+v.l+'<br><span>Key features:</span> '+v.f.join(' · ')+'<br><span>Fun fact:</span> '+v.x;tutRender()}
+function fit(){const w=$('#wrap'),fs=document.fullscreenElement,W=fs?innerWidth:w.clientWidth,H=fs?innerHeight:w.clientHeight;k=Math.min(W/1280,H/720);
+ $('#stage').style.transform='scale('+k+')';$('#fit').style.width=1280*k+'px';$('#fit').style.height=720*k+'px'}
+ORDER.forEach(id=>{const o=el('option','',V[id].n+' ('+V[id].y+')');o.value=id;$('#sel').append(o)});
+try{tut=JSON.parse(localStorage.getItem('wtm-tut')||'{}')}catch(e){}
+resetFS();
+$('#sel').onchange=e=>switchTo(e.target.value);
+$('#bt').onclick=()=>openTut();
+$('#br').onclick=()=>{resetFS();tut[cur]=0;save();$('#stage').classList.remove('dark');switchTo(cur)};
+$('#bf').onclick=()=>$('#fit').requestFullscreen&&$('#fit').requestFullscreen();
+addEventListener('resize',fit);document.addEventListener('fullscreenchange',fit);
+addEventListener('keydown',e=>{if(e.key=='Escape'){const s=$('#start');s&&s.classList.remove('open');openTut(false)}
+ if(e.key=='Meta'&&$('#sb'))$('#sb').click();if(e.altKey&&e.key=='F4'&&wins.length){e.preventDefault();wins[wins.length-1].close()}});
+fit();switchTo(location.hash.slice(1)||localStorage.getItem('wtm-ver')||'xp',true);
+</script></body></html>
